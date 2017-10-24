@@ -1,8 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const https = require("https");
-const pg = require("pg");
+const pgp = require('pg-promise')();
 const fetch = require("node-fetch");
+
+const db = pgp({
+  user: 'postgres',
+  password: 'postgres',
+  host: 'localhost',
+  database: 'cambridge',
+});//require("../db");
 
 // Strava API key
 const strava_access_token = '1e0c15bfece72d30bdc7fac56e3a90fae34508e8';
@@ -10,37 +17,6 @@ const strava_headers = { headers: {
   Authorization: `Bearer ${strava_access_token}`,
   "Content-Type": "application/x-www-form-urlencoded"
 }};
-
-// Setup Postgres connection
-const conn = {
-  username: 'postgres',
-  password: 'postgres',
-  host: 'localhost',
-  database: 'cambridge',
-};
-const conString = `postgres://${conn.username}:${conn.password}@${conn.host}/${conn.database}`;
-
-const coffee_query = "SELECT row_to_json(fc) " +
-  "FROM ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features " +
-  "FROM (SELECT 'Feature' As type, ST_AsGeoJSON(lg.geom)::json As geometry, row_to_json((id, name)) As properties " +
-  "FROM cambridge_coffee_shops As lg) As f) As fc";
-
-const coffee_shop_query = `SELECT cambridge_neighborhoods.name as name, count(*) 
-FROM cambridge_coffee_shops, cambridge_neighborhoods 
-WHERE ST_Intersects(cambridge_coffee_shops.geom, cambridge_neighborhoods.geom) 
-GROUP BY cambridge_neighborhoods.name`;
-
-router.get('/data', async (req, res, next) => {
-  const client = new pg.Client(conString);
-  try {
-    await client.connect();
-    const result = await client.query(coffee_query);
-    res.send(result.rows[0].row_to_json);
-    await client.end();
-  } catch (e) {
-    next(e);
-  }
-});
 
 /*
  * Strava API Requests
@@ -81,10 +57,62 @@ router.get('/athlete/zones', async (req, res) => {
     console.log(err);
   }
 });
+router.get('/segments/:id/leaderboard', async (req, res) => {
+  try {
+    const response = await fetch(
+      `https://www.strava.com/api/v3/segments/${req.params.id}/leaderboard`,
+      strava_headers
+    );
+    const leaderboard = await response.json();
+    res.send(leaderboard);
+  } catch (err) {
+    console.log(err);
+  }
+});
 
+router.get('/segments/explore/:a_lat/:a_long/:b_lat/:b_long', async (req, res) => {
+  try {
+    const { a_lat, a_long, b_lat, b_long } = req.params;
+    const response = await fetch(
+      `https://www.strava.com/api/v3/segments/explore?bounds=
+      ${a_lat},${a_long},${b_lat},${b_long}&activity_type=running`,
+      strava_headers
+    );
+    const segments = await response.json();
+
+    // Insert these segments into segment table
+    const ColSet = new pgp.helpers.ColumnSet(['id', 'name', 'climb_category', 'climb_category_desc', 'avg_grade',
+      'elev_difference', 'distance', 'points', 'start_latlng', 'end_latlng'],
+      { table: 'segments' });
+    const segment_data = segments.segments.map(s => Object.assign(
+        {},
+        s,
+        { start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
+          end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})` }
+      ));
+    const insert = pgp.helpers.insert(segment_data, ColSet);
+    await db.query(insert);
+
+    // Insert this rectangle into rectangles table to check if it's been explored
+    const query = 'INSERT INTO rectangles(start_latlng, end_latlng) VALUES($1, $2)';
+    const points = [
+      `(${a_lat},${a_long})`,
+      `(${b_lat},${b_long})`,
+    ];
+    await db.query(query, points);
+    res.send(segments);
+  } catch (err) {
+    console.log(err);
+  }
+});
 /*
+* TODO: move pg promise config from top of file to db\index.js
+* TODO: refactor getDunedinSegments, getCRs, getSegments from client to server
+* TODO: add created/modified date rectangles, segments, efforts tables
+*  - when segments are queried for a rectangle, query all the rectangles contained to see if they are up to date
+*  - run segment/explore API call for any unexplored rectangles
 *
-* Move all the Strava API requests to get segments, athlete data, efforts etc into here and use GraphQL to query it
+* Use GraphQL to query everything
 * Could handle pagination on the back end, sync data to the database or used cached database instead of API call
 *
 * */
