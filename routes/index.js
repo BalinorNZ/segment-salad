@@ -1,15 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const https = require("https");
-const pgp = require('pg-promise')();
 const fetch = require("node-fetch");
-
-const db = pgp({
-  user: 'postgres',
-  password: 'postgres',
-  host: 'localhost',
-  database: 'cambridge',
-});//require("../db");
+const db = require("../db");
+const pgp = require('pg-promise')();
 
 // Strava API key
 const strava_access_token = '1e0c15bfece72d30bdc7fac56e3a90fae34508e8';

@@ -1,13 +1,11 @@
-const { Pool } = require('pg');
+const pgp = require('pg-promise')();
 
 // Setup Postgres connection
-const pool = new Pool({
+const db = pgp({
   user: 'postgres',
   password: 'postgres',
   host: 'localhost',
   database: 'cambridge',
 });
 
-module.exports = {
-  query: (text, params) => pool.query(text, params)
-};
+module.exports = db;
