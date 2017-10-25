@@ -70,41 +70,40 @@ module.exports = {
 *  - Could handle pagination on the back end, sync data to the database or used cached database instead of API call
 * */
   segmentsExplore: async (rect_coords) => {
-    let segments = [];
-
     try {
       const db_rects = await db.query('SELECT * from rectangles');
-      const db_segments = await db.query('SELECT * from segments');
+      const db_segments = await db.query('SELECT * from segments '
+        + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
+        + 'WHERE segment_efforts.rank = 1');
 
-      const sub_rects = getSubRects(rect_coords, 6);
-      sub_rects.forEach(async rect => {
-        // TODO if(rectAlreadyCached(rect)) return; ### Check if this rect has already been scanned
-        segments.push(await getSegments(rect[0], rect[1], rect[2], rect[3]));
-        // Insert this rectangle into rectangles table to check if it's been explored
+      const sub_rects = getSubRects(rect_coords, 10);
+      const segments_arrays = await Promise.all(sub_rects.map(async rect => {
+        // TODO: if(rectAlreadyCached(rect)) return; ### Check if this rect has already been scanned
+        // TODO: Insert this rectangle into rectangles table to check if it's been explored
         const query = 'INSERT INTO rectangles(start_latlng, end_latlng) VALUES($1, $2)';
         const points = [
           `(${rect[0]},${rect[1]})`,
           `(${rect[2]},${rect[3]})`,
         ];
         await db.query(query, points);
-      });
+        return await getSegments(rect[0], rect[1], rect[2], rect[3]);
+      }));
 
-      let new_segments = [];
-      segments.forEach(segment => {
-        // (TODO CHECK FOR DUPES) const dupes = payload.segments.filter(s => this.state.segments.includes(s.id));
-        // if(segmentAlreadyCached(segment)) return; ### Check if this segment has already been cached
-        //this.getCRs(payload.segments);
-        new_segments.push(segment);
-      });
+      const segments = [].concat.apply([], segments_arrays);
+      if(segments[0] === undefined)
+        console.log('Segment undefined, Strava API limit probably reached.');
+
+      const new_segments = (segments[0] === undefined) ? [] :
+        segments.filter(segment => {
+          return !db_segments.find(s => parseInt(s.id) === parseInt(segment.id));
+        });
 
       // Insert these segments into segment table
       if(new_segments.length) {
         const ColSet = new pgp.helpers.ColumnSet(['id', 'name', 'climb_category', 'climb_category_desc',
             'avg_grade', 'elev_difference', 'distance', 'points', 'start_latlng', 'end_latlng'],
           {table: 'segments'});
-        const segment_data = new_segments.map(s => Object.assign(
-          {},
-          s,
+        const segment_data = new_segments.map(s => Object.assign({}, s,
           {
             start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
             end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})`
@@ -115,15 +114,33 @@ module.exports = {
       }
 
       // get leaderboards for new segments
-      const new_segments_with_cr = new_segments.map(async s => {
-        const response = await fetch(
-          `https://www.strava.com/api/v3/segments/${s.id}/leaderboard`,
-          strava_headers
-        );
-        const leaderboard = await response.json();
-        // TODO: write leaderboard efforts to db
-        return Object.assign({}, s, { cr: leaderboard.entries[0], entry_count: leaderboard.entry_count });
-      });
+      const new_segments_with_cr = await Promise.all(new_segments.map(async segment => {
+        try {
+          const response = await fetch(
+            `https://www.strava.com/api/v3/segments/${segment.id}/leaderboard`,
+            strava_headers
+          );
+          const leaderboard = await response.json();
+
+          // Write entry_count to segments table
+          await db.query('UPDATE segments SET entry_count = $1 WHERE id = $2', [leaderboard.entry_count, segment.id]);
+
+          // Insert leaderboard efforts into segment_efforts table
+          if(leaderboard.entries.length) {
+            const efforts_data = leaderboard.entries
+              .map(effort => Object.assign({}, effort, { segment_id: segment.id }));
+            const segment_effort_col_set = new pgp.helpers.ColumnSet(['effort_id', 'activity_id', 'segment_id', 'rank',
+                'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance', 'elapsed_time',
+                'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
+              {table: 'segment_efforts'});
+            const insert = pgp.helpers.insert(efforts_data, segment_effort_col_set);
+            await db.query(insert);
+          }
+          return Object.assign({}, segment, leaderboard.entries[0], { entry_count: leaderboard.entry_count });
+        } catch (err) {
+          console.log(err);
+        }
+      }));
 
       return [...new_segments_with_cr, ...db_segments];
     } catch (err) {
@@ -147,7 +164,10 @@ const getSegments = async (a_lat, a_long, b_lat, b_long) => {
 };
 
 const getSubRects = (rect_coords, splits) => {
-  const { minlat, minlong, maxlat, maxlong } = rect_coords;
+  const minlat = parseFloat(rect_coords.a_lat);
+  const minlong = parseFloat(rect_coords.a_long);
+  const maxlat = parseFloat(rect_coords.b_lat);
+  const maxlong = parseFloat(rect_coords.b_long);
   const longpoints = [];
   const latpoints = [];
   const sub_rects = [];
