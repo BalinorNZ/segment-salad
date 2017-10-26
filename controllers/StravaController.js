@@ -64,19 +64,17 @@ module.exports = {
 
 /*
 * TODO: add created/modified date rectangles, segments, efforts tables
-*  - when segments are queried for a rectangle, query all the rectangles contained to see if they are up to date
-*  - run segment/explore API call for any unexplored rectangles
-*  - Use GraphQL to query everything
-*  - Could handle pagination on the back end, sync data to the database or used cached database instead of API call
+* TODO: Use GraphQL to query everything
 * */
   segmentsExplore: async (rect_coords) => {
     try {
       const db_rects = await db.query('SELECT * from rectangles');
       const db_segments = await db.query('SELECT * from segments '
         + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
-        + 'WHERE segment_efforts.rank = 1');
+        + 'WHERE (segment_efforts.rank = 1) OR public.segment_efforts.rank IS NULL');
 
-      const sub_rects = getSubRects(rect_coords, 10);
+      // TODO: given the starting long/lat, recursively generate sub rects to scan until sub rect size < 1km
+      const sub_rects = getSubRects(rect_coords, 1);
       const segments_arrays = await Promise.all(sub_rects.map(async rect => {
         // TODO: if(rectAlreadyCached(rect)) return; ### Check if this rect has already been scanned
         // TODO: Insert this rectangle into rectangles table to check if it's been explored
@@ -97,6 +95,13 @@ module.exports = {
         segments.filter(segment => {
           return !db_segments.find(s => parseInt(s.id) === parseInt(segment.id));
         });
+
+      console.log(new_segments.map(s => s.id+', '));
+      console.log('new', new_segments.length);
+      console.log('api', segments.length);
+      console.log('db', db_segments.length);
+      console.log('rects', sub_rects.length);
+      console.log('rect size', sub_rects[0][0], sub_rects[0][1], sub_rects[0][2], sub_rects[0][3]);
 
       // Insert these segments into segment table
       if(new_segments.length) {
