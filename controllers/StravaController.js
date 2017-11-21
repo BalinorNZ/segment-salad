@@ -63,7 +63,6 @@ module.exports = {
   },
 
 /*
-* TODO: add created/modified date rectangles, segments, efforts tables
 * TODO: Use GraphQL to query everything
 * */
   segmentsExplore: async (rect_coords) => {
@@ -119,6 +118,10 @@ module.exports = {
       }
 
       // get leaderboards for new segments
+      // TODO: investigate request full efforts instead of using leaderboard
+      // TODO: when scanning segments, if the modified date (efforts count) is old, re-request efforts
+      // TODO: check if elevation_gain is zero even if max_elevation and min_elevation are quite different
+      // TODO: get segment efforts for each of an athletes activities to add to db
       const new_segments_with_cr = await Promise.all(new_segments.map(async segment => {
         try {
           const response = await fetch(
