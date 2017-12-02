@@ -135,9 +135,15 @@ module.exports = {
   segmentsExplore: async (rect_coords) => {
     try {
       const db_rects = await db.query('SELECT * from rectangles');
-      const db_segments = await db.query('SELECT * from segments '
+      // TODO: parameterize subquery WHERE clause to get effort filtering
+      const db_segments = await db.query('select * from segments '
+        + 'join (select distinct on (segment_id) * from segment_efforts '
+        + 'order by segment_id, elapsed_time, start_date desc '
+        + ') as course_record on segments.id = course_record.segment_id');
+      // Include segments that have no efforts against them
+      const effortless_segments = await db.query('SELECT * from segments '
         + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
-        + 'WHERE (segment_efforts.rank = 1) OR public.segment_efforts.rank IS NULL');
+        + 'WHERE public.segment_efforts.rank IS NULL');
 
       // TODO: given the starting long/lat, recursively generate sub rects to scan until sub rect size < 1km
       const sub_rects = getSubRects(rect_coords, 1);
@@ -190,7 +196,7 @@ module.exports = {
          return Object.assign({}, segment, leaderboard);
       }));
 
-      return [...new_segments_with_cr, ...db_segments];
+      return [...new_segments_with_cr, ...db_segments, ...effortless_segments];
     } catch (err) {
       console.log(err);
     }
