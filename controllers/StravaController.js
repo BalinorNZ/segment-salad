@@ -137,7 +137,11 @@ module.exports = {
       const db_rects = await db.query('SELECT * from rectangles');
       // TODO: parameterize subquery WHERE clause to get effort filtering
       const db_segments = await db.query('select * from segments '
-        + 'join (select distinct on (segment_id) * from segment_efforts '
+        + 'join (select distinct on (segment_id) '
+        + 'effort_id, activity_id, segment_id, athlete_name, athlete_gender, distance as effort_distance, '
+        + 'elapsed_time, moving_time, start_date, start_date_local, athlete_profile, modified as effort_modified, '
+        + 'created as effort_created '
+        + 'from segment_efforts '
         + 'order by segment_id, elapsed_time, start_date desc '
         + ') as course_record on segments.id = course_record.segment_id');
       // Include segments that have no efforts against them
