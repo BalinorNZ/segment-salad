@@ -91,8 +91,8 @@ module.exports = {
           );
           const leaderboard = await response.json();
           entry_count = leaderboard.entry_count;
-          if (entry_count/200 < page) break;
           entries = [...entries, ...leaderboard.entries];
+          if (entry_count/200 < page) break;
           page ++;
         } catch (err) {
           console.log(err);
@@ -108,7 +108,22 @@ module.exports = {
         entries.map(e => parseInt(e.effort_id)), db_efforts.map(e => parseInt(e.effort_id))
       );
       const new_efforts = _.uniqBy(entries.filter(entry => new_effort_ids.includes(entry.effort_id)), 'effort_id');
-      console.log('db_efforts, new efforts:', db_efforts.length, new_efforts.length);
+
+      // Make a list of db leaderboard efforts that no longer exist
+      const deleted_effort_ids = _.difference(
+        db_efforts.map(e => parseInt(e.effort_id)), entries.map(e => parseInt(e.effort_id))
+      );
+      if(deleted_effort_ids.length) {
+        const markers = deleted_effort_ids.map((id, index) => '$' + (parseInt(index) + 1)).join(', ');
+        await db.query('DELETE FROM segment_efforts WHERE effort_id IN (' + markers + ')',
+          deleted_effort_ids.map(id => parseInt(id)));
+      }
+
+      console.log('UPDATE SEGMENT - segment_id:', segment_id,
+        ', response_entries:', entries.length,
+        ', db_efforts:', db_efforts.length,
+        ', new efforts:', new_efforts.length,
+        ', deleted efforts:', deleted_effort_ids.length);
 
       // Insert leaderboard efforts that aren't already recorded into segment_efforts table
       if(new_efforts.length) {
