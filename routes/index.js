@@ -5,6 +5,10 @@ const StravaController = require('../controllers/StravaController');
 /*
  * Strava API Requests
  */
+router.get('/authenticate', async (req, res) =>
+  res.send(await StravaController.authenticate())
+);
+
 router.get('/activities/:page', async (req, res) =>
   res.send(await StravaController.activities(req.params.page))
 );
@@ -13,11 +17,16 @@ router.get('/athletes/:id/stats', async (req, res) =>
   res.send(await StravaController.athleteStats(req.params.id))
 );
 
+router.get('/athletes/:id/segments', async (req, res) =>
+  res.send(await StravaController.segmentPBsForAthlete(req.params.id))
+);
+
 router.get('/athlete/zones', async (req, res) =>
   res.send(await StravaController.athleteZones())
 );
 
 router.get('/segments/:id/updateleaderboard', async (req, res) =>
+  //res.send(await StravaController.updateAllSegments())
   res.send(await StravaController.updateSegmentLeaderboard(req.params.id))
 );
 
