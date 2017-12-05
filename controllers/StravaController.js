@@ -205,6 +205,7 @@ module.exports = {
   // TODO: add athlete ID to efforts in efforts table, so we can filter by it
   segmentPBsForAthlete: async(athlete_id) => {
     const db_segments = await db.query(buildEffortQuery('athlete_id', athlete_id));
+    return db_segments;
   },
 
 /*
