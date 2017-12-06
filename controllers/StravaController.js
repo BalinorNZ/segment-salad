@@ -39,6 +39,64 @@ module.exports = {
     }
   },
 
+  activities_with_segment_scanning: async (page) => {
+    try {
+      const db_segments = await db.query(buildEffortQuery());
+      const response = await fetch(
+        `https://www.strava.com/api/v3/athlete/activities?page=${page}&per_page=5`,
+        strava_headers
+      );
+      const activities = await response.json();
+      await Promise.all(activities.map(async activity => {
+        try {
+          const response = await fetch(
+            `https://www.strava.com/api/v3/activities/${activity.id}?include_all_efforts=true`,
+            strava_headers
+          );
+          const full_activity = await response.json();
+          if(full_activity.segment_efforts[0] !== undefined) {
+            const new_segments = full_activity.segment_efforts.filter(effort => {
+                return !db_segments.find(s => parseInt(s.id) === parseInt(effort.segment.id))
+            });
+            await Promise.all(new_segments.map(async effort => {
+              if(!effort.segment.private) {
+                // save effort.segment to db
+                console.log(`Saving new segment ${effort.segment.name}`);
+                const ColSet = new pgp.helpers.ColumnSet(['id', 'name', 'climb_category',
+                    'avg_grade', 'distance', 'points', 'start_latlng', 'end_latlng'],
+                  {table: 'segments'});
+                const segment_data = [effort.segment].map(s => Object.assign({}, s,
+                  {
+                    avg_grade: s.average_grade,
+                    start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
+                    end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})`
+                  }
+                ));
+                const insert_segment = pgp.helpers.insert(segment_data, ColSet);
+                await db.query(insert_segment);
+
+                // save effort to db
+                const efforts_data = [effort]
+                  .map(effort => Object.assign({}, effort, { segment_id }));
+                const segment_effort_col_set = new pgp.helpers.ColumnSet(['athlete_id', 'effort_id', 'activity_id', 'segment_id',
+                    'rank', 'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance', 'elapsed_time',
+                    'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
+                  {table: 'segment_efforts'});
+                const insert_effort = pgp.helpers.insert(efforts_data, segment_effort_col_set);
+                await db.query(insert_effort);
+              }
+            }));
+          }
+        } catch (err) {
+          console.log(err);
+        }
+      }));
+      return activities;
+    } catch (err) {
+      console.log(err);
+    }
+  },
+
   athleteStats: async (id) => {
     try {
       const response = await fetch(
@@ -84,52 +142,6 @@ module.exports = {
       return await response.json();
     } catch (err) {
       console.log(err);
-    }
-  },
-
-  // Temporary function to add missing athlete IDs to efforts table
-  updateAllSegments: async () => {
-    const segments = await db.query("SELECT id FROM segments");
-    if(segments.length) {
-      await Promise.all(segments.slice(99, 200).map(async segment => {
-        if(!segment.id) return;
-        try {
-          let entries = [];
-          let entry_count;
-          let page = 1;
-          while (true) {
-            try {
-              const response = await fetch(
-                `https://www.strava.com/api/v3/segments/${segment.id}/leaderboard?page=${page}&per_page=200`,
-                strava_headers
-              );
-              const leaderboard = await response.json();
-              entry_count = leaderboard.entry_count;
-              entries = [...entries, ...leaderboard.entries];
-              if (entry_count/200 < page) break;
-              page ++;
-            } catch (err) {
-              console.log(err);
-            }
-          }
-          // Make a list of leaderboard efforts that aren't already recorded
-          const db_efforts = await db.query('SELECT * from segment_efforts WHERE segment_id = $1', [segment.id]);
-          const new_effort_ids = _.difference(
-            entries.map(e => parseInt(e.effort_id)), db_efforts.map(e => parseInt(e.effort_id))
-          );
-          // Update existing efforts
-          const existing_effort_ids = _.difference(
-            entries.map(e => parseInt(e.effort_id)), new_effort_ids
-          );
-          const existing_efforts = _.uniqBy(entries.filter(effort => existing_effort_ids.includes(effort.effort_id)), 'effort_id');
-          console.log("updating efforts", existing_efforts.length, segment.id);
-          await Promise.all(existing_efforts.map(async effort => {
-            await db.query('UPDATE segment_efforts SET athlete_id = $1 WHERE effort_id = $2', [effort.athlete_id, effort.effort_id]);
-          }));
-        } catch (err) {
-          console.log('updateAllSegments caught', err);
-        }
-      })).catch(err => console.log(err));
     }
   },
 
@@ -208,9 +220,8 @@ module.exports = {
     return db_segments;
   },
 
-/*
-* TODO: Use GraphQL to query everything
-* */
+
+  //TODO: Use GraphQL to query everything
   segmentsExplore: async (rect_coords) => {
     try {
       const db_rects = await db.query('SELECT * from rectangles');
@@ -276,6 +287,52 @@ module.exports = {
       console.log(err);
     }
 
+  },
+
+  // Temporary function to add missing athlete IDs to efforts table
+  updateAllSegments: async () => {
+    const segments = await db.query("SELECT id FROM segments");
+    if(segments.length) {
+      await Promise.all(segments.slice(99, 200).map(async segment => {
+        if(!segment.id) return;
+        try {
+          let entries = [];
+          let entry_count;
+          let page = 1;
+          while (true) {
+            try {
+              const response = await fetch(
+                `https://www.strava.com/api/v3/segments/${segment.id}/leaderboard?page=${page}&per_page=200`,
+                strava_headers
+              );
+              const leaderboard = await response.json();
+              entry_count = leaderboard.entry_count;
+              entries = [...entries, ...leaderboard.entries];
+              if (entry_count/200 < page) break;
+              page ++;
+            } catch (err) {
+              console.log(err);
+            }
+          }
+          // Make a list of leaderboard efforts that aren't already recorded
+          const db_efforts = await db.query('SELECT * from segment_efforts WHERE segment_id = $1', [segment.id]);
+          const new_effort_ids = _.difference(
+            entries.map(e => parseInt(e.effort_id)), db_efforts.map(e => parseInt(e.effort_id))
+          );
+          // Update existing efforts
+          const existing_effort_ids = _.difference(
+            entries.map(e => parseInt(e.effort_id)), new_effort_ids
+          );
+          const existing_efforts = _.uniqBy(entries.filter(effort => existing_effort_ids.includes(effort.effort_id)), 'effort_id');
+          console.log("updating efforts", existing_efforts.length, segment.id);
+          await Promise.all(existing_efforts.map(async effort => {
+            await db.query('UPDATE segment_efforts SET athlete_id = $1 WHERE effort_id = $2', [effort.athlete_id, effort.effort_id]);
+          }));
+        } catch (err) {
+          console.log('updateAllSegments caught', err);
+        }
+      })).catch(err => console.log(err));
+    }
   },
 };
 
