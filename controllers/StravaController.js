@@ -78,9 +78,9 @@ module.exports = {
                 // save effort to db
                 const efforts_data = [effort]
                   .map(effort => Object.assign({}, effort, { segment_id }));
-                const segment_effort_col_set = new pgp.helpers.ColumnSet(['athlete_id', 'effort_id', 'activity_id', 'segment_id',
-                    'rank', 'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance', 'elapsed_time',
-                    'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
+                const segment_effort_col_set = new pgp.helpers.ColumnSet(['athlete_id', 'effort_id', 'activity_id',
+                    'segment_id', 'rank', 'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance',
+                    'elapsed_time', 'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
                   {table: 'segment_efforts'});
                 const insert_effort = pgp.helpers.insert(efforts_data, segment_effort_col_set);
                 await db.query(insert_effort);
