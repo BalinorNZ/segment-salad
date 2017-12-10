@@ -34,7 +34,11 @@ router.get('/athlete/zones', async (req, res) =>
 );
 
 router.get('/segments/:id/updateleaderboard', async (req, res) =>
-  //res.send(await StravaController.updateAllSegments())
+  // Used to get athlete ids that were missing from data
+  //res.send(await StravaController.updateEffortsForAllSegments())
+  // Used to get efforts that were missing from data
+  //res.send(await StravaController.updateAllLeaderboards())
+  // Normal operation
   res.send(await StravaController.updateSegmentLeaderboard(req.params.id))
 );
 

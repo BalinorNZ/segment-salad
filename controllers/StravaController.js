@@ -173,7 +173,6 @@ module.exports = {
 
   // TODO: when scanning segments, if the modified date (efforts count) is old, re-request efforts
   // TODO: check if elevation_gain is zero even if max_elevation and min_elevation are quite different
-  // TODO: get segments for each of an athletes activities to add to db
   updateSegmentLeaderboard: async (segment_id) => {
     return await updateSegmentLeaderboardWorker(segment_id);
   },
@@ -252,10 +251,11 @@ module.exports = {
   },
 
   // Temporary function to add missing athlete IDs to efforts table
-  updateAllSegments: async () => {
+  updateEffortsForAllSegments: async () => {
+    console.log("updateEffortsForAllSegments starting");
     const segments = await db.query("SELECT id FROM segments");
     if(segments.length) {
-      await Promise.all(segments.slice(99, 200).map(async segment => {
+      await Promise.all(segments.slice(0, 10).map(async segment => {
         if(!segment.id) return;
         try {
           let entries = [];
@@ -291,9 +291,21 @@ module.exports = {
             await db.query('UPDATE segment_efforts SET athlete_id = $1 WHERE effort_id = $2', [effort.athlete_id, effort.effort_id]);
           }));
         } catch (err) {
-          console.log('updateAllSegments caught', err);
+          console.log('updateEffortsForAllSegments caught', err);
         }
       })).catch(err => console.log(err));
+    }
+  },
+
+  updateAllLeaderboards: async () => {
+    console.log("updateAllLeaderboards starting");
+    const segments = await db.query("SELECT id FROM segments");
+    if(segments.length) {
+      // update leaderboards for segments
+      await Promise.all(segments.slice(0, 400).map(async segment => {
+        const leaderboard = await updateSegmentLeaderboardWorker(segment.id);
+        return Object.assign({}, segment, leaderboard);
+      }));
     }
   },
 };
