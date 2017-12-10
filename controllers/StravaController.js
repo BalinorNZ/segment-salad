@@ -27,6 +27,32 @@ module.exports = {
     }
   },
 
+  list_clubs: async () => {
+    try {
+      const response = await fetch(
+        `https://www.strava.com/api/v3/athlete/clubs`,
+        strava_headers
+      );
+      return await response.json();
+    } catch (err) {
+      console.log(err);
+    }
+  },
+
+  //TODO: this only gets the first 200 members of the club at the moment
+  segmentsByClub: async club_id => {
+    try {
+      const response = await fetch(
+        `https://www.strava.com/api/v3/clubs/${club_id}/members?per_page=200`,
+        strava_headers
+      );
+      const club_members = await response.json();
+      return await db.query(buildEffortQuery('athlete_id', club_members.map(member => member.id)));
+    } catch (err) {
+      console.log(err);
+    }
+  },
+
   activities: async (page) => {
     try {
       const response = await fetch(
@@ -149,75 +175,12 @@ module.exports = {
   // TODO: check if elevation_gain is zero even if max_elevation and min_elevation are quite different
   // TODO: get segments for each of an athletes activities to add to db
   updateSegmentLeaderboard: async (segment_id) => {
-    try {
-      let entries = [];
-      let entry_count;
-      let page = 1;
-      while (true) {
-        try {
-          const response = await fetch(
-            `https://www.strava.com/api/v3/segments/${segment_id}/leaderboard?page=${page}&per_page=200`,
-            strava_headers
-          );
-          const leaderboard = await response.json();
-          entry_count = leaderboard.entry_count;
-          entries = [...entries, ...leaderboard.entries];
-          if (entry_count/200 < page) break;
-          page ++;
-        } catch (err) {
-          console.log(err);
-        }
-      }
-
-      // Write entry_count to segments table
-      await db.query('UPDATE segments SET entry_count = $1 WHERE id = $2', [entry_count, segment_id]);
-
-      // Make a list of leaderboard efforts that aren't already recorded
-      const db_efforts = await db.query('SELECT * from segment_efforts WHERE segment_id = $1', [segment_id]);
-      const new_effort_ids = _.difference(
-        entries.map(e => parseInt(e.effort_id)), db_efforts.map(e => parseInt(e.effort_id))
-      );
-      const new_efforts = _.uniqBy(entries.filter(entry => new_effort_ids.includes(entry.effort_id)), 'effort_id');
-
-      // Make a list of db leaderboard efforts that no longer exist
-      const deleted_effort_ids = _.difference(
-        db_efforts.map(e => parseInt(e.effort_id)), entries.map(e => parseInt(e.effort_id))
-      );
-      if(deleted_effort_ids.length) {
-        const markers = deleted_effort_ids.map((id, index) => '$' + (parseInt(index) + 1)).join(', ');
-        await db.query('DELETE FROM segment_efforts WHERE effort_id IN (' + markers + ')',
-          deleted_effort_ids.map(id => parseInt(id)));
-      }
-
-      console.log('UPDATE SEGMENT - segment_id:', segment_id,
-        ', response_entries:', entries.length,
-        ', db_efforts:', db_efforts.length,
-        ', new efforts:', new_efforts.length,
-        ', deleted efforts:', deleted_effort_ids.length);
-
-      // Insert leaderboard efforts that aren't already recorded into segment_efforts table
-      if(new_efforts.length) {
-        const efforts_data = new_efforts
-          .map(effort => Object.assign({}, effort, { segment_id }));
-        const segment_effort_col_set = new pgp.helpers.ColumnSet(['athlete_id', 'effort_id', 'activity_id', 'segment_id',
-            'rank', 'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance', 'elapsed_time',
-            'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
-          {table: 'segment_efforts'});
-        const insert = pgp.helpers.insert(efforts_data, segment_effort_col_set);
-        await db.query(insert);
-      }
-
-      return Object.assign({}, entries[0], { entry_count });
-
-    } catch (err) {
-      console.log(err);
-    }
+    return await updateSegmentLeaderboardWorker(segment_id);
   },
 
   // TODO: add athlete ID to efforts in efforts table, so we can filter by it
   segmentPBsForAthlete: async(athlete_id) => {
-    const db_segments = await db.query(buildEffortQuery('athlete_id', athlete_id));
-    return db_segments;
+    return await db.query(buildEffortQuery('athlete_id', athlete_id));
   },
 
 
@@ -254,8 +217,7 @@ module.exports = {
           return !db_segments.find(s => parseInt(s.id) === parseInt(segment.id));
         });
 
-      console.log(new_segments.map(s => s.id+', '));
-      console.log('new', new_segments.length);
+      console.log('new', new_segments.length, new_segments.map(s => s.id));
       console.log('api', segments.length);
       console.log('db', db_segments.length);
       console.log('rects', sub_rects.length);
@@ -278,7 +240,7 @@ module.exports = {
 
       // get leaderboards for new segments
       const new_segments_with_cr = await Promise.all(new_segments.map(async segment => {
-         const leaderboard = await updateSegmentLeaderboard(segment.id);
+         const leaderboard = await updateSegmentLeaderboardWorker(segment.id);
          return Object.assign({}, segment, leaderboard);
       }));
 
@@ -336,9 +298,79 @@ module.exports = {
   },
 };
 
+const updateSegmentLeaderboardWorker = async (segment_id) => {
+  try {
+    let entries = [];
+    let entry_count;
+    let page = 1;
+    while (true) {
+      try {
+        const response = await fetch(
+          `https://www.strava.com/api/v3/segments/${segment_id}/leaderboard?page=${page}&per_page=200`,
+          strava_headers
+        );
+        const leaderboard = await response.json();
+        entry_count = leaderboard.entry_count;
+        entries = [...entries, ...leaderboard.entries];
+        if (entry_count/200 < page) break;
+        page ++;
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    // Write entry_count to segments table
+    await db.query('UPDATE segments SET entry_count = $1 WHERE id = $2', [entry_count, segment_id]);
+
+    // Make a list of leaderboard efforts that aren't already recorded
+    const db_efforts = await db.query('SELECT * from segment_efforts WHERE segment_id = $1', [segment_id]);
+    const new_effort_ids = _.difference(
+      entries.map(e => parseInt(e.effort_id)), db_efforts.map(e => parseInt(e.effort_id))
+    );
+    const new_efforts = _.uniqBy(entries.filter(entry => new_effort_ids.includes(entry.effort_id)), 'effort_id');
+
+    // Make a list of db leaderboard efforts that no longer exist
+    const deleted_effort_ids = _.difference(
+      db_efforts.map(e => parseInt(e.effort_id)), entries.map(e => parseInt(e.effort_id))
+    );
+    if(deleted_effort_ids.length) {
+      const markers = deleted_effort_ids.map((id, index) => '$' + (parseInt(index) + 1)).join(', ');
+      await db.query('DELETE FROM segment_efforts WHERE effort_id IN (' + markers + ')',
+        deleted_effort_ids.map(id => parseInt(id)));
+    }
+
+    console.log('UPDATE SEGMENT - segment_id:', segment_id,
+      ', response_entries:', entries.length,
+      ', db_efforts:', db_efforts.length,
+      ', new efforts:', new_efforts.length,
+      ', deleted efforts:', deleted_effort_ids.length);
+
+    // Insert leaderboard efforts that aren't already recorded into segment_efforts table
+    if(new_efforts.length) {
+      const efforts_data = new_efforts
+        .map(effort => Object.assign({}, effort, { segment_id }));
+      const segment_effort_col_set = new pgp.helpers.ColumnSet(['athlete_id', 'effort_id', 'activity_id', 'segment_id',
+          'rank', 'athlete_name', 'athlete_gender', 'average_hr', 'average_watts', 'distance', 'elapsed_time',
+          'moving_time', 'start_date', 'start_date_local', 'athlete_profile'],
+        {table: 'segment_efforts'});
+      const insert = pgp.helpers.insert(efforts_data, segment_effort_col_set);
+      await db.query(insert);
+    }
+
+    return Object.assign({}, entries[0], { entry_count });
+
+  } catch (err) {
+    console.log(err);
+  }
+};
+
 const buildEffortQuery = (column, value) => {
   let where_clause = '';
-  if(column && value) where_clause = `WHERE ${column} = ${value} `;
+  if(column && value) {
+    where_clause = `WHERE ${column} = ${value} `;
+    if(Array.isArray(value)) where_clause = `WHERE ${column} in (${value.join(',')}) `;
+    console.log(where_clause);
+  }
   return 'select * from segments '
     + 'join (select distinct on (segment_id) '
     + 'athlete_id, effort_id, activity_id, segment_id, athlete_name, athlete_gender, distance as effort_distance, '

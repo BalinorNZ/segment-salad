@@ -13,6 +13,14 @@ router.get('/activities/:page', async (req, res) =>
   res.send(await StravaController.activities(req.params.page))
 );
 
+router.get('/list_clubs', async (req, res) =>
+  res.send(await StravaController.list_clubs())
+);
+
+router.get('/clubs/:id/segments', async (req, res) =>
+  res.send(await StravaController.segmentsByClub(req.params.id))
+);
+
 router.get('/athletes/:id/stats', async (req, res) =>
   res.send(await StravaController.athleteStats(req.params.id))
 );
