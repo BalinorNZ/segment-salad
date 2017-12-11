@@ -3,7 +3,7 @@ const router = express.Router();
 const StravaController = require('../controllers/StravaController');
 
 /*
- * Strava API Requests
+ * Route API Requests
  */
 router.get('/authenticate', async (req, res) =>
   res.send(await StravaController.authenticate())
@@ -34,11 +34,6 @@ router.get('/athlete/zones', async (req, res) =>
 );
 
 router.get('/segments/:id/updateleaderboard', async (req, res) =>
-  // Used to get athlete ids that were missing from data
-  //res.send(await StravaController.updateEffortsForAllSegments())
-  // Used to get efforts that were missing from data
-  //res.send(await StravaController.updateAllLeaderboards())
-  // Normal operation
   res.send(await StravaController.updateSegmentLeaderboard(req.params.id))
 );
 
@@ -53,6 +48,20 @@ router.get('/segments/:id/efforts', async (req, res) =>
 router.get('/segments/explore/:a_lat/:a_long/:b_lat/:b_long', async (req, res) =>
   res.send(await StravaController.segmentsExplore(req.params))
 );
+
+/*
+ * Unused
+ */
+router.get('/maintenance/updateathleteids', async (req, res) =>
+  // Used to get athlete ids that were missing from data
+  res.send(await StravaController.updateEffortsForAllSegments())
+);
+
+router.get('/maintenance/updateallleaderboards', async (req, res) =>
+  // Used to get efforts that were missing from data
+  res.send(await StravaController.updateAllLeaderboards())
+);
+
 
 /* GET home page. */
 router.get('/', (req, res, next) => res.render('index', { title: 'Express' }));
