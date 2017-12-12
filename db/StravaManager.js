@@ -31,7 +31,7 @@ const authenticate = async () => {
   try {
     const response = await fetch(
       `https://www.strava.com/oauth/authorize`,
-      Object.assign({}, strava_headers, {client_id: '20764', redirect_uri: 'localhost:3000', response_type: 'code'})
+      Object.assign({}, strava_headers, {client_id: config.client_id, redirect_uri: 'localhost:3000', response_type: 'code'})
     );
     return await response.json();
   } catch (err) {
