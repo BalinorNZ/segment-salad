@@ -4,6 +4,7 @@
 const db = require("../db");
 const Manager = require('../db/StravaManager.js');
 
+
 module.exports = {
   // TODO: this doesn't work yet
   authenticate: async () => Manager.authenticate(),
