@@ -6,7 +6,15 @@ Segment Salad is a prototype project that maps Strava segments for easy color co
 
 Check out git repo and run `npm install` in the root folder and the client folder.
 The Client uses Create-react-app. Run `npm start` in two separate terminals in each of the
-root and client folders.
+root and client folders. Create a file called `strava_config` in the client\data folder with the following inside:
+```
+{
+    "access_token"    :"enter your access_token here"
+    , "client_id"     :"enter your client id here"
+    , "client_secret" :"enter your client secret here"
+    , "redirect_uri"  :"http://localhost:3000/"
+}
+```
 
 A. Install Postgres database:  
 [install instructions here](http://duspviz.mit.edu/tutorials/intro-postgis.php)  
