@@ -1,57 +1,25 @@
-Required:  
+#Segment Salad
 
-Postgres database:  
+Segment Salad is a prototype project that maps Strava segments for easy color coding and filtering.
+
+## Setup
+
+Check out git repo and run `npm install` in the root folder and the client folder.
+The Client uses Create-react-app. Run `npm start` in two separate terminals in each of the
+root and client folders.
+
+A. Install Postgres database:  
 [install instructions here](http://duspviz.mit.edu/tutorials/intro-postgis.php)  
 
-PostGIS for Postgres 10 (it's missing from Stack Builder):  
+B. Install PostGIS for Postgres 10 (it's missing from Stack Builder):  
 [download here](http://download.osgeo.org/postgis/windows/pg10/)
 
-To enable PostGIS on a database do:
+C. Enable PostGIS:
 1. open pgAdmin
 2. select (click) your database
 3. click "SQL" icon on the bar
 4. run "CREATE EXTENSION postgis;" code
 
-Adding created/modified in postgres:
-BEGIN;
+[Add instructions about creating a new database and schema in pgAdmin]
 
-ALTER TABLE customer_
-   ADD COLUMN row_modified_ TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT clock_timestamp();
-
-ALTER TABLE invoice_
-   ADD COLUMN row_modified_ TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT clock_timestamp();
-
-
-ALTER TABLE customer_
-   ADD COLUMN row_created_ TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT clock_timestamp();
-
-ALTER TABLE invoice_
-   ADD COLUMN row_created_ TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT clock_timestamp();
-
-
-CREATE OR REPLACE FUNCTION update_row_modified_function_()
-RETURNS TRIGGER 
-AS 
-$$
-BEGIN
-    -- ASSUMES the table has a column named exactly "row_modified_".
-    -- Fetch date-time of actual current moment from clock, rather than start of statement or start of transaction.
-    NEW.row_modified_ = clock_timestamp(); 
-    RETURN NEW;
-END;
-$$ 
-language 'plpgsql';
-
-CREATE TRIGGER row_mod_on_customer_trigger_
-BEFORE UPDATE
-ON customer_ 
-FOR EACH ROW 
-EXECUTE PROCEDURE update_row_modified_function_();
-
-CREATE TRIGGER row_mod_on_invoice_trigger_
-BEFORE UPDATE
-ON invoice_ 
-FOR EACH ROW 
-EXECUTE PROCEDURE update_row_modified_function_();
-
-COMMIT;
+D. Import table backups for rectangles, segment_efforts and segments from /schemas folder
