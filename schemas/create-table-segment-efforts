@@ -1,0 +1,68 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 10.0
+-- Dumped by pg_dump version 10.0
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET search_path = public, pg_catalog;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: segment_efforts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE segment_efforts (
+    effort_id bigint NOT NULL,
+    activity_id bigint NOT NULL,
+    segment_id bigint,
+    rank integer,
+    athlete_name text,
+    athlete_gender character(1),
+    average_hr real,
+    average_watts real,
+    distance real,
+    elapsed_time integer,
+    moving_time integer,
+    start_date timestamp without time zone,
+    start_date_local timestamp without time zone,
+    athlete_profile text,
+    modified timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    created timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    athlete_id bigint DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE segment_efforts OWNER TO postgres;
+
+--
+-- Name: segment_efforts segment_efforts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY segment_efforts
+    ADD CONSTRAINT segment_efforts_pkey PRIMARY KEY (effort_id);
+
+
+--
+-- Name: segment_efforts row_mod_on_customer_trigger_; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER row_mod_on_customer_trigger_ BEFORE UPDATE ON segment_efforts FOR EACH ROW EXECUTE PROCEDURE update_row_modified_function_();
+
+
+--
+-- PostgreSQL database dump complete
+--
+
