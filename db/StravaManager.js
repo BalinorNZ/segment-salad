@@ -5,9 +5,10 @@ const fetch = require("node-fetch");
 const db = require("../db");
 const pgp = require('pg-promise')();
 const _ = require('lodash');
+const config = require('../data/strava_config');
 
 // Strava API key
-const strava_access_token = '1e0c15bfece72d30bdc7fac56e3a90fae34508e8';
+const strava_access_token = config.access_token;
 const strava_headers = { headers: {
   Authorization: `Bearer ${strava_access_token}`,
   "Content-Type": "application/x-www-form-urlencoded"
