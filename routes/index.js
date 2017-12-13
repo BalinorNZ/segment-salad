@@ -13,6 +13,10 @@ router.get('/activities/:page', async (req, res) =>
   res.send(await StravaController.activities(req.params.page))
 );
 
+router.get('/activities/segments/:page', async (req, res) =>
+  res.send(await StravaController.scanAllActivitiesForNewSegments(req.params.page))
+);
+
 router.get('/list_clubs', async (req, res) =>
   res.send(await StravaController.list_clubs())
 );

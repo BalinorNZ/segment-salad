@@ -41,6 +41,8 @@ module.exports = {
   // Temporary function to add missing athlete IDs to efforts table
   updateEffortsForAllSegments: async () => Manager.updateEffortsForAllSegments(),
 
+  scanAllActivitiesForNewSegments: async (page) => Manager.scanAllActivitiesForNewSegments(page),
+
   updateAllLeaderboards: async () => {
     console.log("updateAllLeaderboards starting");
     const segments = await db.query("SELECT id FROM segments");
