@@ -9,7 +9,9 @@ Check out the segment-salad repo along with client submodule (--recursive flag g
 
 Run `npm install` in the root folder and the client folder.
 The Client uses Create-react-app. Run `npm start` in two separate terminals in each of the
-root and client folders. Create a file called `strava_config` in a folder called `data` at the project root with the following inside:
+root and client folders.
+
+Create a file called `strava_config` in a folder called `data` at the project root with the following inside:
 ```
 module.exports = {
     "access_token"    :"enter your access_token here"
