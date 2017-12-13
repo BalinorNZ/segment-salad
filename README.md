@@ -35,4 +35,4 @@ C. Enable PostGIS:
 
 [Add instructions about creating a new database and schema in pgAdmin]
 
-D. Import table backups for rectangles, segment_efforts and segments from /schemas folder
+D. Import table backups for rectangles, segment_efforts and segments from /schemas folder.
