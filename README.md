@@ -1,10 +1,13 @@
-#Segment Salad
+# Segment Salad
 
 Segment Salad is a prototype project that maps Strava segments for easy color coding and filtering.
 
 ## Setup
 
-Check out git repo and run `npm install` in the root folder and the client folder.
+Check out the segment-salad repo along with client submodule (--recursive flag gets client submodule):  
+`git clone --recursive git@github.com:BalinorNZ/segment-salad.git`
+
+Run `npm install` in the root folder and the client folder.
 The Client uses Create-react-app. Run `npm start` in two separate terminals in each of the
 root and client folders. Create a file called `strava_config` in a folder called `data` at the project root with the following inside:
 ```
