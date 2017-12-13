@@ -5,7 +5,7 @@ const db = pgp({
   user: 'postgres',
   password: 'postgres',
   host: 'localhost',
-  database: 'cambridge',
+  database: 'segmentsalad',
 });
 
 module.exports = db;
