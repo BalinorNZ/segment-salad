@@ -47,8 +47,8 @@ module.exports = {
     console.log("updateAllLeaderboards starting");
     const segments = await db.query("SELECT id FROM segments");
     if(segments.length) {
-      // update leaderboards for segments
-      await Promise.all(segments.map(async segment => {
+      // update leaderboards for segments, slice segments to first 500 to avoid hitting Strava API rate limit.
+      await Promise.all(segments.slice(0, 500).map(async segment => {
         const leaderboard = await Manager.updateSegmentLeaderboard(segment.id);
         return Object.assign({}, segment, leaderboard);
       }));

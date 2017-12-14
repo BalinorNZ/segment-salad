@@ -219,7 +219,8 @@ const scanAllActivitiesForNewSegments = async page => {
   try {
     const db_segments = await db.query(buildEffortQuery());
     const activities = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=200`);
-    await Promise.all(activities.map(async activity => {
+    // Slice activities to first 500 to avoid hitting Strava API rate limit.
+    await Promise.all(activities.slice(0, 500).map(async activity => {
       const full_activity = await StravaAPIRequest(`activities/${activity.id}?include_all_efforts=true`);
 
       if(full_activity.segment_efforts[0] === undefined) return;
