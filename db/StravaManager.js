@@ -39,14 +39,18 @@ const authenticate = async () => {
   }
 };
 
+const getSegments = async () => {
+  const db_segments = await db.query(buildEffortQuery());
+  const effortless_segments = await db.query('SELECT * from segments '
+    + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
+    + 'WHERE public.segment_efforts.rank IS NULL');
+  return [...db_segments, ...effortless_segments];
+};
+
 const segmentsExplore = async rect_coords => {
   try {
     const db_rects = await db.query('SELECT * from rectangles');
-    const db_segments = await db.query(buildEffortQuery());
-    // Include segments that have no efforts against them
-    const effortless_segments = await db.query('SELECT * from segments '
-      + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
-      + 'WHERE public.segment_efforts.rank IS NULL');
+    const db_segments = await getSegments();
 
     // TODO: given the starting long/lat, recursively generate sub rects to scan until sub rect size < 1km
     const sub_rects = getSubRects(rect_coords, 1);
@@ -59,7 +63,8 @@ const segmentsExplore = async rect_coords => {
         `(${rect[2]},${rect[3]})`,
       ];
       await db.query(query, points);
-      return await getSegments(rect[0], rect[1], rect[2], rect[3]);
+      const payload = await StravaAPIRequest(`segments/explore?bounds=${rect[0]},${rect[1]},${rect[2]},${rect[3]}&activity_type=running`);
+      return payload.segments;
     }));
 
     const segments = [].concat.apply([], segments_arrays);
@@ -98,7 +103,7 @@ const segmentsExplore = async rect_coords => {
       return Object.assign({}, segment, leaderboard);
     }));
 
-    return [...new_segments_with_cr, ...db_segments, ...effortless_segments];
+    return [...new_segments_with_cr, ...db_segments];
   } catch (err) {
     console.log(err);
   }
@@ -181,12 +186,6 @@ const buildEffortQuery = (column, value) => {
     + ') as course_record on segments.id = course_record.segment_id';
 };
 
-const getSegments = async (a_lat, a_long, b_lat, b_long) => {
-  const payload =
-    await StravaAPIRequest(`segments/explore?bounds=${a_lat},${a_long},${b_lat},${b_long}&activity_type=running`);
-  return payload.segments;
-};
-
 const getSubRects = (rect_coords, splits) => {
   const minlat = parseFloat(rect_coords.a_lat);
   const minlong = parseFloat(rect_coords.a_long);
@@ -262,6 +261,7 @@ const scanAllActivitiesForNewSegments = async page => {
 module.exports = {
   StravaAPIRequest,
   authenticate,
+  getSegments,
   segmentsExplore,
   updateSegmentLeaderboard,
   updateEffortsForAllSegments,

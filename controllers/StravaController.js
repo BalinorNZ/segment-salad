@@ -11,6 +11,8 @@ module.exports = {
 
   list_clubs: async () => Manager.StravaAPIRequest('athlete/clubs'),
 
+  segments: async () => Manager.getSegments(),
+
   //TODO: this only gets the first 200 members of the club at the moment
   segmentsByClub: async club_id => {
     const club_members = await Manager.StravaAPIRequest(`clubs/${club_id}/members?per_page=200`);
@@ -48,7 +50,7 @@ module.exports = {
     const segments = await db.query("SELECT id FROM segments");
     if(segments.length) {
       // update leaderboards for segments, slice segments to first 500 to avoid hitting Strava API rate limit.
-      await Promise.all(segments.slice(0, 500).map(async segment => {
+      await Promise.all(segments.slice(0, 10).map(async segment => {
         const leaderboard = await Manager.updateSegmentLeaderboard(segment.id);
         return Object.assign({}, segment, leaderboard);
       }));

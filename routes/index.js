@@ -37,6 +37,10 @@ router.get('/athlete/zones', async (req, res) =>
   res.send(await StravaController.athleteZones())
 );
 
+router.get('/segments', async (req, res) =>
+    res.send(await StravaController.segments())
+);
+
 router.get('/segments/:id/updateleaderboard', async (req, res) =>
   res.send(await StravaController.updateSegmentLeaderboard(req.params.id))
 );
