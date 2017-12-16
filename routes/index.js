@@ -13,9 +13,9 @@ router.get('/activities/:page', async (req, res) =>
   res.send(await StravaController.activities(req.params.page))
 );
 
-router.get('/activities/segments/:page', async (req, res) =>
-  res.send(await StravaController.scanAllActivitiesForNewSegments(req.params.page))
-);
+router.get('/segments/scanactivities/:id', async (req, res) => {
+  res.send(await StravaController.scanAllActivitiesForNewSegments(req.params.id));
+});
 
 router.get('/list_clubs', async (req, res) =>
   res.send(await StravaController.list_clubs())
@@ -57,6 +57,14 @@ router.get('/segments/explore/:a_lat/:a_long/:b_lat/:b_long', async (req, res) =
   res.send(await StravaController.segmentsExplore(req.params))
 );
 
+router.get('/maintenance/updateallleaderboards/:opt', async (req, res) => {
+  // Used to get efforts that were missing from data
+  if(req.params.opt === 'all')
+    res.send(await StravaController.updateAllLeaderboards());
+  else
+    res.send(await StravaController.updateEffortlessLeaderboards());
+});
+
 /*
  * Unused
  */
@@ -65,10 +73,7 @@ router.get('/maintenance/updateathleteids', async (req, res) =>
   res.send(await StravaController.updateEffortsForAllSegments())
 );
 
-router.get('/maintenance/updateallleaderboards', async (req, res) =>
-  // Used to get efforts that were missing from data
-  res.send(await StravaController.updateAllLeaderboards())
-);
+
 
 
 /* GET home page. */

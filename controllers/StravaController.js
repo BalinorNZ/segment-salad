@@ -43,7 +43,18 @@ module.exports = {
   // Temporary function to add missing athlete IDs to efforts table
   updateEffortsForAllSegments: async () => Manager.updateEffortsForAllSegments(),
 
-  scanAllActivitiesForNewSegments: async (page) => Manager.scanAllActivitiesForNewSegments(page),
+  scanAllActivitiesForNewSegments: async athlete_id => Manager.scanAllActivitiesForNewSegments(athlete_id),
+
+  updateEffortlessLeaderboards: async () => {
+    const segments = await Manager.getEffortlessSegments();
+    if(segments.length) {
+      // update leaderboards for segments
+      await Promise.all(segments.map(async segment => {
+        const leaderboard = await Manager.updateSegmentLeaderboard(segment.id);
+        return Object.assign({}, segment, leaderboard);
+      }));
+    }
+  },
 
   updateAllLeaderboards: async () => {
     console.log("updateAllLeaderboards starting");

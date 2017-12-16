@@ -41,10 +41,14 @@ const authenticate = async () => {
 
 const getSegments = async () => {
   const db_segments = await db.query(buildEffortQuery());
-  const effortless_segments = await db.query('SELECT * from segments '
+  const effortless_segments = await getEffortlessSegments();
+  return [...db_segments, ...effortless_segments];
+};
+
+const getEffortlessSegments = async () => {
+  return await db.query('SELECT * from segments '
     + 'LEFT JOIN segment_efforts ON segments.id = segment_efforts.segment_id '
     + 'WHERE public.segment_efforts.rank IS NULL');
-  return [...db_segments, ...effortless_segments];
 };
 
 const segmentsExplore = async rect_coords => {
@@ -213,28 +217,44 @@ const getSubRects = (rect_coords, splits) => {
 };
 
 // gets segment data for all an athlete's activities
-const scanAllActivitiesForNewSegments = async page => {
+const scanAllActivitiesForNewSegments = async athlete_id => {
   try {
-    const db_segments = await db.query(buildEffortQuery());
-    const activities = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=200`);
-    // Slice activities to first 500 to avoid hitting Strava API rate limit.
-    const activity_segment_efforts = await Promise.all(activities.slice(0, 500).map(async activity => {
+    const db_segments = await getSegments();
+    const athlete_stats = await StravaAPIRequest(`/athletes/${athlete_id}/stats`);
+    const activity_count = athlete_stats.all_ride_totals.count
+      + athlete_stats.all_run_totals.count
+      + athlete_stats.all_swim_totals.count;
+    // should probably rewrite this without a gross while loop and mutating variables
+    let all_activities = [];
+    let page = 1;
+    const per_page = 200;
+    while (Math.ceil(activity_count / per_page) >= page) { // while there are pages with activities left
+      const activities_page = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=${per_page}`);
+      all_activities = [...all_activities, ...activities_page];
+      page++;
+    }
+    const activities = all_activities.filter(a => a.type === "Run");
+    const activity_segment_efforts = await Promise.all(activities.map(async activity => {
+      // Get full activity from Strava (which has segment efforts)
       const full_activity = await StravaAPIRequest(`activities/${activity.id}?include_all_efforts=true`);
       return full_activity.segment_efforts;
     }));
     const segment_efforts = _.flatten(activity_segment_efforts);
 
-    const new_segments = segment_efforts.filter(effort =>
-      !db_segments.find(db_segment => parseInt(db_segment.id) === parseInt(effort.segment.id))
-    ).filter(effort => !effort.segment.private // don't save athlete's private segments
-    ).map(effort => effort.segment);
+    const new_segments = _.uniqBy(segment_efforts
+      .filter(effort =>
+        !db_segments.find(db_segment => parseInt(db_segment.id) === parseInt(effort.segment.id))
+      ).filter(effort => !effort.segment.private // don't save athlete's private segments
+      ).map(effort => effort.segment)
+    , 'segment_id');
 
-    console.log(`Found ${new_segments.length} new segments in ${segment_efforts.length} efforts.`);
+    console.log(`Found ${new_segments.length} new segments in ${segment_efforts.length} efforts from ${activities.length} activities.`);
 
     await Promise.all(new_segments.map(async segment => {
-      // save effort.segment to db
+      // Get full segment data from Strava (which has polyline data)
       const full_segment = await StravaAPIRequest(`segments/${segment.id}`);
       console.log(`Saving new segment ${full_segment.name}(${full_segment.id})`);
+      // save segment to db
       const ColSet = new pgp.helpers.ColumnSet(['id', 'name', 'climb_category',
           'avg_grade', 'distance', 'points', 'start_latlng', 'end_latlng'],
         {table: 'segments'});
@@ -258,10 +278,12 @@ const scanAllActivitiesForNewSegments = async page => {
   }
 };
 
+
 module.exports = {
   StravaAPIRequest,
   authenticate,
   getSegments,
+  getEffortlessSegments,
   segmentsExplore,
   updateSegmentLeaderboard,
   updateEffortsForAllSegments,
@@ -311,4 +333,4 @@ async function updateEffortsForAllSegments() {
       }
     })).catch(err => console.log(err));
   }
-};
+}
