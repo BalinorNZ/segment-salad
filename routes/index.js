@@ -25,6 +25,10 @@ router.get('/clubs/:id/segments', async (req, res) =>
   res.send(await StravaController.segmentsByClub(req.params.id))
 );
 
+router.get('/athletes', async (req, res) =>
+  res.send(await StravaController.athletes())
+);
+
 router.get('/athletes/:id/stats', async (req, res) =>
   res.send(await StravaController.athleteStats(req.params.id))
 );

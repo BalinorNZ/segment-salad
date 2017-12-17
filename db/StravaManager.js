@@ -278,11 +278,18 @@ const scanAllActivitiesForNewSegments = async athlete_id => {
   }
 };
 
+const getAthletes = async () => {
+  return await db.query('SELECT DISTINCT on (athlete_id) '
+  + 'athlete_id, athlete_name, athlete_profile, effort_id '
+  + 'FROM segment_efforts ORDER BY athlete_id, effort_id DESC;');
+};
+
 
 module.exports = {
   StravaAPIRequest,
   authenticate,
   getSegments,
+  getAthletes,
   getEffortlessSegments,
   segmentsExplore,
   updateSegmentLeaderboard,

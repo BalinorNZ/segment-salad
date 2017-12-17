@@ -13,6 +13,8 @@ module.exports = {
 
   segments: async () => Manager.getSegments(),
 
+  athletes: async () => Manager.getAthletes(),
+
   //TODO: this only gets the first 200 members of the club at the moment
   segmentsByClub: async club_id => {
     const club_members = await Manager.StravaAPIRequest(`clubs/${club_id}/members?per_page=200`);
