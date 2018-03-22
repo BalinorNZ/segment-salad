@@ -1,0 +1,12 @@
+CREATE TABLE segments(
+   id INT PRIMARY       KEY     NOT NULL,
+   name                 TEXT    NOT NULL,
+   climb_category       INT,
+   climb_category_desc  TEXT,
+   avg_grade            REAL,
+   elev_difference      REAL,
+   distance             REAL,
+   points               TEXT,
+   start_latlng         POINT,
+   end_latlng           POINT
+);

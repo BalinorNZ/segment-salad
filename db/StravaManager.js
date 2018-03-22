@@ -141,10 +141,12 @@ const updateSegmentLeaderboard = async segment_id => {
     const deleted_effort_ids = _.difference(
       db_efforts.map(e => parseInt(e.effort_id)), entries.map(e => parseInt(e.effort_id))
     );
+    console.log('entries', entries);
+    console.log('db_efforts', db_efforts);
     if(deleted_effort_ids.length) {
       const markers = deleted_effort_ids.map((id, index) => '$' + (parseInt(index) + 1)).join(', ');
-      await db.query('DELETE FROM segment_efforts WHERE effort_id IN (' + markers + ')',
-        deleted_effort_ids.map(id => parseInt(id)));
+      // await db.query('DELETE FROM segment_efforts WHERE effort_id IN (' + markers + ')',
+      //   deleted_effort_ids.map(id => parseInt(id)));
     }
 
     console.log('UPDATE SEGMENT - segment_id:', segment_id,

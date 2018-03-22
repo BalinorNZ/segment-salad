@@ -1,0 +1,5 @@
+CREATE TABLE rectangles(
+   id SERIAL PRIMARY    KEY     NOT NULL,
+   start_latlng         POINT,
+   end_latlng           POINT
+);
