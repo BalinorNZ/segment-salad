@@ -61,6 +61,14 @@ router.get('/segments/explore/:a_lat/:a_long/:b_lat/:b_long', async (req, res) =
   res.send(await StravaController.segmentsExplore(req.params))
 );
 
+
+
+router.get('/athletesegments', async (req, res) =>
+  res.send(await StravaController.athleteSegments())
+);
+
+
+
 router.get('/maintenance/updateallleaderboards/:opt', async (req, res) => {
   // Used to get efforts that were missing from data
   if(req.params.opt === 'all')

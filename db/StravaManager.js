@@ -286,6 +286,26 @@ const getAthletes = async () => {
   + 'FROM segment_efforts ORDER BY athlete_id, effort_id DESC;');
 };
 
+const getAthleteSegments = async () => {
+  // let all_activities = [];
+  // let page = 1;
+  // const per_page = 200;
+  // while (Math.ceil(activity_count / per_page) >= page) { // while there are pages with activities left
+  //   const activities_page = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=${per_page}`);
+  //   all_activities = [...all_activities, ...activities_page];
+  //   page++;
+  // }
+  const activities_page = await StravaAPIRequest(`athlete/activities?page=1&per_page=5`);
+  const activities = activities_page.filter(a => a.type === "Run");
+  const activity_segment_efforts = await Promise.all(activities.map(async activity => {
+    // Get full activity from Strava (which has segment efforts)
+    const full_activity = await StravaAPIRequest(`activities/${activity.id}?include_all_efforts=true`);
+    return full_activity.segment_efforts;
+  }));
+  const segment_efforts = _.flatten(activity_segment_efforts);
+  return segment_efforts;
+};
+
 
 module.exports = {
   StravaAPIRequest,
@@ -298,6 +318,7 @@ module.exports = {
   updateEffortsForAllSegments,
   buildEffortQuery,
   scanAllActivitiesForNewSegments,
+  getAthleteSegments,
 };
 
 

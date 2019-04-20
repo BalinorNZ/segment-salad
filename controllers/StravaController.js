@@ -6,6 +6,9 @@ const Manager = require('../db/StravaManager.js');
 
 
 module.exports = {
+  athleteSegments: async () => Manager.getAthleteSegments(),
+
+
   // TODO: this doesn't work yet
   authenticate: async () => Manager.authenticate(),
 
