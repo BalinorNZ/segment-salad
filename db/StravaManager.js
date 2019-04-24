@@ -221,6 +221,7 @@ const getSubRects = (rect_coords, splits) => {
 // gets segment data for all an athlete's activities
 const scanAllActivitiesForNewSegments = async athlete_id => {
   try {
+    console.log("scanAllActivitiesForNewSegments");
     const db_segments = await getSegments();
     const athlete_stats = await StravaAPIRequest(`/athletes/${athlete_id}/stats`);
     const activity_count = athlete_stats.all_ride_totals.count
@@ -236,9 +237,25 @@ const scanAllActivitiesForNewSegments = async athlete_id => {
       page++;
     }
     const activities = all_activities.filter(a => a.type === "Run");
-    const activity_segment_efforts = await Promise.all(activities.map(async activity => {
+    const activity_segment_efforts = await Promise.all(activities.slice(4, 5).map(async activity => {
       // Get full activity from Strava (which has segment efforts)
       const full_activity = await StravaAPIRequest(`activities/${activity.id}?include_all_efforts=true`);
+      console.log(full_activity);
+      // TODO: save full activity to db
+      // const ColSet = new pgp.helpers.ColumnSet(['id', 'name', 'climb_category',
+      //     'avg_grade', 'distance', 'points', 'start_latlng', 'end_latlng'],
+      //   {table: 'segments'});
+      // const segment_data = [segment].map(s => Object.assign({}, s,
+      //   {
+      //     avg_grade: s.average_grade,
+      //     start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
+      //     end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})`,
+      //     points: full_segment.map.polyline,
+      //   }
+      // ));
+      // const insert_segment = pgp.helpers.insert(segment_data, ColSet);
+      // await db.query(insert_segment);
+
       return full_activity.segment_efforts;
     }));
     const segment_efforts = _.flatten(activity_segment_efforts);
@@ -272,7 +289,8 @@ const scanAllActivitiesForNewSegments = async athlete_id => {
       await db.query(insert_segment);
 
       // save efforts for new segment to db
-      await updateSegmentLeaderboard(full_segment.id);
+      // TODO: removed for now since getting all efforts for segments doesn't work anymore
+      //await updateSegmentLeaderboard(full_segment.id);
     }));
     return activities;
   } catch (err) {
@@ -295,6 +313,9 @@ const getAthleteSegments = async () => {
   //   all_activities = [...all_activities, ...activities_page];
   //   page++;
   // }
+  const efforts = await db.query('SELECT * from segments LIMIT 10');
+  console.log(efforts);
+
   const activities_page = await StravaAPIRequest(`athlete/activities?page=1&per_page=5`);
   const activities = activities_page.filter(a => a.type === "Run");
   const activity_segment_efforts = await Promise.all(activities.map(async activity => {
