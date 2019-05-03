@@ -437,17 +437,8 @@ const getAthletes = async () => {
 
 const getAthleteSegments = async () => {
   try {
-    const athlete = await StravaAPIRequest(`athlete`);
-
-    // 1. get activities list
-    // let all_activities = [];
-    // let page = 1;
-    // const per_page = 200;
-    // while (Math.ceil(activity_count / per_page) >= page) { // while there are pages with activities left
-    //   const activities_page = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=${per_page}`);
-    //   all_activities = [...all_activities, ...activities_page];
-    //   page++;
-    // }
+    // 1. get activities to save
+    //const all_activities = await getAllActivitiesList();
     const activities_page = await StravaAPIRequest(
       `athlete/activities?page=2&per_page=100`
     );
@@ -456,6 +447,7 @@ const getAthleteSegments = async () => {
       "SELECT effort_id from segment_efforts"
     );
     const db_segments = await db.query("SELECT id from segments");
+
     // 1.1 filter out activities that already exist in db
     const db_activities = await db.query("SELECT id from activities");
     const new_activities = activities.filter(
@@ -468,91 +460,7 @@ const getAthleteSegments = async () => {
     // 2. save new activities
     await Promise.all(
       new_activities.map(async activity => {
-        // get full activty data from Strava
-        const full_activity = await StravaAPIRequest(
-          `activities/${activity.id}?include_all_efforts=true`
-        );
-        const ColSet = new pgp.helpers.ColumnSet(
-          [
-            "id",
-            "athlete_id" /*--athlete.id*/,
-            "activity_name" /*--name*/,
-            "distance",
-            "moving_time",
-            "elapsed_time",
-            "average_speed",
-            "max_speed",
-            "average_cadence",
-            "has_heartrate",
-            "average_heartrate",
-            "max_heartrate",
-            "heartrate_opt_out",
-            "calories",
-            "elev_high",
-            "elev_low",
-            "pr_count",
-            "description",
-            "total_elevation_gain",
-            "activity_type" /*type*/,
-            "workout_type",
-            "external_id",
-            "upload_id",
-            "start_date",
-            "start_date_local",
-            "utc_offset",
-            "start_latlng",
-            "end_latlng",
-            "location_city",
-            "location_state",
-            "location_country",
-            "start_latitude",
-            "start_longitude",
-            "achievement_count",
-            "kudos_count",
-            "comment_count",
-            "athlete_count",
-            "photo_count",
-            "total_photo_count",
-            "full_polyline" /*--map.polyline*/,
-            "summary_polyline" /*--map.summary_polyline*/,
-            "commute",
-            "manual",
-            "private",
-            "visibility",
-            "flagged",
-            "gear_id",
-            "gear_name" /*--gear.name*/,
-            "device_name",
-            "laps" /*--JSON.stringify(laps)*/,
-            "splits_metric" /*--JSON.stringify(splits_metric)*/,
-            "splits_imperial" /*--JSON.stringify(splits_standard)*/
-          ],
-          { table: "activities" }
-        );
-        const activity_data = [full_activity].map(a =>
-          Object.assign({}, a, {
-            athlete_id: full_activity.athlete.id,
-            activity_type: full_activity.type,
-            activity_name: full_activity.name,
-            start_latlng: `(${a.start_latlng[0]},${a.start_latlng[1]})`,
-            end_latlng: `(${a.end_latlng[0]},${a.end_latlng[1]})`,
-            full_polyline: full_activity.map.polyline,
-            summary_polyline: full_activity.map.summary_polyline,
-            laps: JSON.stringify(full_activity.laps),
-            splits_metric: JSON.stringify(full_activity.splits_metric),
-            splits_imperial: JSON.stringify(full_activity.splits_standard),
-            gear_name: full_activity.gear.name,
-            average_cadence: a.average_cadence || null,
-            average_heartrate: a.average_heartrate || null,
-            max_heartrate: a.max_heartrate || null,
-            device_name: a.device_name || null
-          })
-        );
-        console.log(
-          `Saving new activity ${full_activity.name}(${full_activity.id})`
-        );
-        const insert_activity = pgp.helpers.insert(activity_data, ColSet);
-        await db.query(insert_activity);
+        const full_activity = await saveActivity(activity);
 
         // 2.2 filter out segment efforts that already exist in db
         const new_segment_efforts = full_activity.segment_efforts.filter(
@@ -562,107 +470,27 @@ const getAthleteSegments = async () => {
                 parseInt(db_segment_effort.effort_id) === parseInt(segment_effort.id)
             )
         );
-        console.log(
-          "New segment efforts to save: " + new_segment_efforts.length,
-          full_activity.segment_efforts.length
-        );
-        // 2.3 save new segment efforts
-        await Promise.all(
-          new_segment_efforts.map(async effort => {
-            // TODO: add pr_rank field?
-            const ColSet = new pgp.helpers.ColumnSet(
-              [
-                "athlete_id",
-                "effort_id",
-                "activity_id",
-                "segment_id",
-                "rank",
-                "athlete_name",
-                "athlete_gender",
-                "average_hr",
-                "distance",
-                "elapsed_time",
-                "moving_time",
-                "start_date",
-                "start_date_local",
-                "athlete_profile"
-              ],
-              { table: "segment_efforts" }
-            );
-            const effort_data = [effort].map(e =>
-              Object.assign({}, e, {
-                effort_id: e.id,
-                activity_id: e.activity.id,
-                segment_id: e.segment.id,
-                athlete_id: e.athlete.id,
-                rank: e.kom_rank,
-                average_hr: e.average_heartrate,
-                athlete_gender: athlete.sex,
-                athlete_name: `${athlete.firstname} ${athlete.lastname}`,
-                athlete_profile: athlete.profile
-              })
-            );
-            console.log(
-              `Saving new segment_effort ${effort.id}(${effort.athlete_name})`
-            );
+        console.log(`New efforts to save: ${new_segment_efforts.length}/${full_activity.segment_efforts.length}`);
+        await saveSegmentEfforts(new_segment_efforts);
 
-            const insert_segment_effort = pgp.helpers.insert(
-              effort_data,
-              ColSet
-            );
-            await db.query(insert_segment_effort);
-          })
-        );
+        // return list of segment ids from activity
+        return full_activity.segment_efforts.map(e => e.segment);
 
-        // 3. filter out segments that already exist in db
-        const new_segments = _.uniqBy(full_activity.segment_efforts.map(e => e.segment).filter(
-          segment =>
-            !db_segments.find(
-              db_segment =>
-                parseInt(db_segment.id) === parseInt(segment.id)
-            )
-        ),
-          "id"
-        );
-
-        // 3.2 save new segments
-        await Promise.all(
-          new_segments.filter(segment => segment.private === false).map(async segment => {
-            const full_segment = await StravaAPIRequest(`segments/${segment.id}`);
-            console.log(`Saving new segment ${full_segment.name}(${full_segment.id}) from activity ${full_activity.name}`);
-            const ColSet = new pgp.helpers.ColumnSet(
-              [
-                "id",
-                "name",
-                "climb_category",
-                "avg_grade",
-                "elev_difference",
-                "distance",
-                "points",
-                "start_latlng",
-                "end_latlng",
-                "entry_count"
-              ],
-              { table: "segments" }
-            );
-            const segment_data = [full_segment].map(s => Object.assign({}, s, {
-              avg_grade: s.average_grade,
-              elev_difference: s.total_elevation_gain, // this might be different to elev_difference taken from leaderboard
-              points: s.map.polyline,
-              start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
-              end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})`,
-              entry_count: s.effort_count,
-              // TODO: add to db - maximum_grade, elevation_high, elevation_low, city, state, country, private,
-              //  hazardous, created_at, updated_at, athlete_count, star_count, athlete_segment_stats?
-              // TODO: write another maintenance function to update these details for existing segments.
-            }));
-            const insert_segment = pgp.helpers.insert(segment_data, ColSet);
-            await db.query(insert_segment);
-            db_segments.push({ id: full_segment.id });
-          })
-        );
       })
-    );
+    ).then(async segment_arrays => {
+      const segments = [].concat.apply([], segment_arrays);
+      // 3. filter out segments that already exist in db
+      const new_segments = _.uniqBy(segments.filter(
+        segment =>
+          !db_segments.find(
+            db_segment =>
+              parseInt(db_segment.id) === parseInt(segment.id)
+          )
+        ),
+        "id"
+      );
+      await saveSegments(new_segments);
+    });
 
     // 4. Display a list of most recent segment efforts.
     // TODO: replace this API call with a DB request (limit 100)
@@ -696,21 +524,199 @@ module.exports = {
   getAthleteSegments
 };
 
-
-
-
-
-function saveActivity() {
-
+async function getAllActivitiesList() {
+  // 1. get activities list
+  let all_activities = [];
+  let page = 1;
+  const per_page = 200;
+  // while there are pages with activities left
+  while (Math.ceil(activity_count / per_page) >= page) {
+    const activities_page = await StravaAPIRequest(`athlete/activities?page=${page}&per_page=${per_page}`);
+    all_activities = [...all_activities, ...activities_page];
+    page++;
+  }
+  return all_activities;
 }
 
+async function saveSegments(segments) {
+  // 3.2 save new segments
+  await Promise.all(
+    segments.filter(segment => segment.private === false).map(async segment => {
+      const full_segment = await StravaAPIRequest(`segments/${segment.id}`);
+      console.log(`Saving new segment ${full_segment.name}(${full_segment.id})`);
+      const ColSet = new pgp.helpers.ColumnSet(
+        [
+          "id",
+          "name",
+          "climb_category",
+          "avg_grade",
+          "elev_difference",
+          "distance",
+          "points",
+          "start_latlng",
+          "end_latlng",
+          "entry_count"
+        ],
+        { table: "segments" }
+      );
+      const segment_data = [full_segment].map(s => Object.assign({}, s, {
+        avg_grade: s.average_grade,
+        elev_difference: s.total_elevation_gain, // this might be different to elev_difference taken from leaderboard
+        points: s.map.polyline,
+        start_latlng: `(${s.start_latlng[0]},${s.start_latlng[1]})`,
+        end_latlng: `(${s.end_latlng[0]},${s.end_latlng[1]})`,
+        entry_count: s.effort_count,
+        // TODO: add to db - maximum_grade, elevation_high, elevation_low, city, state, country, private,
+        //  hazardous, created_at, updated_at, athlete_count, star_count, athlete_segment_stats?
+        // TODO: write another maintenance function to update these details for existing segments.
+      }));
+      const insert_segment = pgp.helpers.insert(segment_data, ColSet);
+      await db.query(insert_segment);
+      //db_segments.push({ id: full_segment.id });
+    })
+  );
+}
 
+async function saveSegmentEfforts(segment_efforts) {
+  // 2.3 save new segment efforts
+  const athlete = await StravaAPIRequest(`athlete`);
 
+  await Promise.all(
+    segment_efforts.map(async effort => {
+      // TODO: add pr_rank field?
+      const ColSet = new pgp.helpers.ColumnSet(
+        [
+          "athlete_id",
+          "effort_id",
+          "activity_id",
+          "segment_id",
+          "rank",
+          "athlete_name",
+          "athlete_gender",
+          "average_hr",
+          "distance",
+          "elapsed_time",
+          "moving_time",
+          "start_date",
+          "start_date_local",
+          "athlete_profile"
+        ],
+        { table: "segment_efforts" }
+      );
+      const effort_data = [effort].map(e =>
+        Object.assign({}, e, {
+          effort_id: e.id,
+          activity_id: e.activity.id,
+          segment_id: e.segment.id,
+          athlete_id: e.athlete.id,
+          rank: e.kom_rank,
+          average_hr: e.average_heartrate,
+          athlete_gender: athlete.sex,
+          athlete_name: `${athlete.firstname} ${athlete.lastname}`,
+          athlete_profile: athlete.profile
+        })
+      );
+      console.log(
+        `Saving new segment_effort ${effort.id}(${effort.athlete_name})`
+      );
 
+      const insert_segment_effort = pgp.helpers.insert(
+        effort_data,
+        ColSet
+      );
+      await db.query(insert_segment_effort);
+    })
+  );
+}
 
-
-
-
+async function saveActivity(activity) {
+// get full activty data from Strava
+  const full_activity = await StravaAPIRequest(
+    `activities/${activity.id}?include_all_efforts=true`
+  );
+  const ColSet = new pgp.helpers.ColumnSet(
+    [
+      "id",
+      "athlete_id" /*--athlete.id*/,
+      "activity_name" /*--name*/,
+      "distance",
+      "moving_time",
+      "elapsed_time",
+      "average_speed",
+      "max_speed",
+      "average_cadence",
+      "has_heartrate",
+      "average_heartrate",
+      "max_heartrate",
+      "heartrate_opt_out",
+      "calories",
+      "elev_high",
+      "elev_low",
+      "pr_count",
+      "description",
+      "total_elevation_gain",
+      "activity_type" /*type*/,
+      "workout_type",
+      "external_id",
+      "upload_id",
+      "start_date",
+      "start_date_local",
+      "utc_offset",
+      "start_latlng",
+      "end_latlng",
+      "location_city",
+      "location_state",
+      "location_country",
+      "start_latitude",
+      "start_longitude",
+      "achievement_count",
+      "kudos_count",
+      "comment_count",
+      "athlete_count",
+      "photo_count",
+      "total_photo_count",
+      "full_polyline" /*--map.polyline*/,
+      "summary_polyline" /*--map.summary_polyline*/,
+      "commute",
+      "manual",
+      "private",
+      "visibility",
+      "flagged",
+      "gear_id",
+      "gear_name" /*--gear.name*/,
+      "device_name",
+      "laps" /*--JSON.stringify(laps)*/,
+      "splits_metric" /*--JSON.stringify(splits_metric)*/,
+      "splits_imperial" /*--JSON.stringify(splits_standard)*/
+    ],
+    { table: "activities" }
+  );
+  const activity_data = [full_activity].map(a =>
+    Object.assign({}, a, {
+      athlete_id: full_activity.athlete.id,
+      activity_type: full_activity.type,
+      activity_name: full_activity.name,
+      start_latlng: `(${a.start_latlng[0]},${a.start_latlng[1]})`,
+      end_latlng: `(${a.end_latlng[0]},${a.end_latlng[1]})`,
+      full_polyline: full_activity.map.polyline,
+      summary_polyline: full_activity.map.summary_polyline,
+      laps: JSON.stringify(full_activity.laps),
+      splits_metric: JSON.stringify(full_activity.splits_metric),
+      splits_imperial: JSON.stringify(full_activity.splits_standard),
+      gear_name: full_activity.gear.name,
+      average_cadence: a.average_cadence || null,
+      average_heartrate: a.average_heartrate || null,
+      max_heartrate: a.max_heartrate || null,
+      device_name: a.device_name || null
+    })
+  );
+  console.log(
+    `Saving new activity ${full_activity.name}(${full_activity.id})`
+  );
+  const insert_activity = pgp.helpers.insert(activity_data, ColSet);
+  await db.query(insert_activity);
+  return full_activity;
+}
 
 
 
