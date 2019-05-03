@@ -25,17 +25,58 @@ SET default_with_oids = false;
 --
 
 CREATE TABLE activities (
---    id bigint NOT NULL,
---    name text NOT NULL,
---    climb_category integer,
---    climb_category_desc text,
---    avg_grade real,
---    elev_difference real,
---    distance real,
---    points text,
---    start_latlng point,
---    end_latlng point,
---    entry_count integer,
+    id bigint NOT NULL, --id
+    athlete_id bigint NOT NULL, --athlete.id
+    activity_name text NOT NULL, --name
+    distance real,
+    moving_time integer,
+    elapsed_time integer,
+    average_speed real,
+    max_speed real,
+    average_cadence integer,
+    has_heartrate boolean,
+    average_heartrate real,
+    max_heartrate real,
+    heartrate_opt_out boolean,
+    calories integer,
+    elev_high real,
+    elev_low real,
+    pr_count integer,
+    description text,
+    total_elevation_gain real,
+    activity_type text, --type
+    workout_type text,
+    external_id text,
+    upload_id bigint,
+    start_date timestamp without time zone,
+    start_date_local timestamp without time zone,
+    utc_offset integer,
+    start_latlng point,
+    end_latlng point,
+    location_city text,
+    location_state text,
+    location_country text,
+    start_latitude real,
+    start_longitude real,
+    achievement_count integer,
+    kudos_count integer,
+    comment_count integer,
+    athlete_count integer,
+    photo_count integer,
+    total_photo_count integer,
+    full_polyline text, --map.polyline
+    summary_polyline text, --map.summary_polyline
+    commute boolean,
+    manual boolean,
+    private boolean,
+    visibility text,
+    flagged boolean,
+    gear_id text,
+    gear_name text, --gear.name
+    device_name text,
+    laps jsonb, --JSON.stringify(laps)
+    splits_metric jsonb, --JSON.stringify(splits_metric)
+    splits_imperial jsonb, --JSON.stringify(splits_standard)
     modified timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     created timestamp with time zone DEFAULT clock_timestamp() NOT NULL
 );
@@ -61,29 +102,6 @@ CREATE TRIGGER row_mod_on_invoice_trigger_ BEFORE UPDATE ON activities FOR EACH 
 --
 -- PostgreSQL database dump complete
 --
-
---activity_id
---athlete_id
---name
---distance
---moving_time
---elapsed_time
---total_elevation_gain
---type
---workout_type
---external_id
---upload_id
---start_date
---start_date_local
---utc_offset
---start_latlng
---end_latlng
---achievement_count
---kudos_count
---comment_count
---athlete_count
---photo_count
-
 --scanAllActivitiesForNewSegments
 --{ resource_state: 3,
 --  athlete: { id: 4734138, resource_state: 1 },
