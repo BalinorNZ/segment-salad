@@ -438,9 +438,10 @@ const getAthletes = async () => {
 const getAthleteSegments = async () => {
   try {
     // 1. get activities to save
+    const page = 1;
     //const all_activities = await getAllActivitiesList();
     const activities_page = await StravaAPIRequest(
-      `athlete/activities?page=2&per_page=100`
+      `athlete/activities?page=${page}&per_page=200`
     );
     const activities = activities_page.filter(a => a.type === "Run");
     const db_segment_efforts = await db.query(
@@ -454,9 +455,12 @@ const getAthleteSegments = async () => {
       activity =>
         !db_activities.find(
           db_activity => parseInt(db_activity.id) === parseInt(activity.id)
-        )
+        ) && !activity.manual === true && !activity.trainer === true
     );
 
+    // TODO: make a list of activities.flagged === true and remove/flag efforts on those activities in db
+
+    let new_segments = [];
     // 2. save new activities
     await Promise.all(
       new_activities.map(async activity => {
@@ -475,12 +479,11 @@ const getAthleteSegments = async () => {
 
         // return list of segment ids from activity
         return full_activity.segment_efforts.map(e => e.segment);
-
       })
     ).then(async segment_arrays => {
       const segments = [].concat.apply([], segment_arrays);
       // 3. filter out segments that already exist in db
-      const new_segments = _.uniqBy(segments.filter(
+      new_segments = _.uniqBy(segments.filter(
         segment =>
           !db_segments.find(
             db_segment =>
@@ -492,18 +495,9 @@ const getAthleteSegments = async () => {
       await saveSegments(new_segments);
     });
 
+    console.log(`Saved ${new_segments.length} segments from ${new_activities.length} activities. Page ${page}.`);
     // 4. Display a list of most recent segment efforts.
-    // TODO: replace this API call with a DB request (limit 100)
-    const activity_segment_efforts = await Promise.all(
-      activities.map(async activity => {
-        // Get full activity from Strava (which has segment efforts)
-        const full_activity = await StravaAPIRequest(
-          `activities/${activity.id}?include_all_efforts=true`
-        );
-        return full_activity.segment_efforts;
-      })
-    );
-    return _.flatten(activity_segment_efforts);
+    return [];
   } catch (err) {
     console.log(err);
   }
@@ -572,7 +566,6 @@ async function saveSegments(segments) {
       }));
       const insert_segment = pgp.helpers.insert(segment_data, ColSet);
       await db.query(insert_segment);
-      //db_segments.push({ id: full_segment.id });
     })
   );
 }
@@ -703,7 +696,7 @@ async function saveActivity(activity) {
       laps: JSON.stringify(full_activity.laps),
       splits_metric: JSON.stringify(full_activity.splits_metric),
       splits_imperial: JSON.stringify(full_activity.splits_standard),
-      gear_name: full_activity.gear.name,
+      gear_name: full_activity.gear && full_activity.gear.name,
       average_cadence: a.average_cadence || null,
       average_heartrate: a.average_heartrate || null,
       max_heartrate: a.max_heartrate || null,
